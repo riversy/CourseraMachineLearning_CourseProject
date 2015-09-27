@@ -1,0 +1,8 @@
+.Rproj.user
+.Rhistory
+.RData
+data/*
+.DS_Store
+.Rapp.history
+*.Rproj
+index_cache

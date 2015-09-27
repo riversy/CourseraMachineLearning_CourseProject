@@ -1,0 +1,192 @@
+---
+title: "Course Project for Coursera Machine Learning"
+author: "Igor Goltsov <riversy@gmail.com>"
+date: "26 сентября 2015 г."
+output: html_document
+---
+
+In this work I would like to describe the way how I've prepared prediction model for Weight Lifting Exercise Dataset. This work is the part of my **Course Project** in **Machine Learning** class on **Coursera**.
+
+## 1. Load Data Section
+
+Suppose, the data was already downloaded into **data/** folder of the project and I may load it to memory. I have two files *pml-training.csv* and *pml-testing.csv* that contains data for training and testing of our prediction model. Let's load and explore it. 
+
+```{r, cache=TRUE}
+training <- read.csv("data/pml-training.csv")
+testing <- read.csv("data/pml-testing.csv")
+str(testing)
+```
+
+## 2. Clean Data Section
+
+We need to use **testing** to predict *class* of activity. But both the **training** and 
+the **testing** datasets contains some unnecesary data, for example *user_name*, *X* and different types of timestamps. All this data may overfit our model and may reduce prediction quality. Testing model is also conatins few columns that are always *NA* so these columns can't be used for prediction anyway. So we need to clear both datasets before start training.
+
+### 2.1 Remove new window records
+
+First of all I would like to remove new window records as soon as there's aggregation rows from training dataset. 
+
+```{r}
+library(dplyr)
+training <- filter(training, new_window == 'yes')
+```
+
+### 2.2 Remove overfitting columns
+
+I will build the list of these columns and remove it from both of datasets. 
+
+There's the list of columns that should be removed below.
+
+```{r}
+removeColumns <- c(
+  "X",
+  "user_name",
+  "raw_timestamp_part_1",
+  "raw_timestamp_part_2",
+  "cvtd_timestamp",
+  "new_window",
+  "num_window"
+)
+```
+
+I will remove these columns from both training and test datasets.
+
+```{r, cache=TRUE}
+training <- training[, !names(training) %in% removeColumns]
+testing <- testing[, !names(testing) %in% removeColumns]
+```
+
+### 2.3 Remove NA columns
+
+As soon as some 
+
+```{r, cache=TRUE}
+naColumns <- colnames(testing)[colSums(is.na(testing)) > 0]
+training <- training[, !names(training) %in% naColumns]
+testing <- testing[, !names(testing) %in% naColumns]
+```
+
+### 2.4 Exchange #DIV/0! to NA
+
+I would like to exchange *#DIV/0!* to *NA* in training dataset before try to train prediction model. 
+
+```{r, cache=TRUE}
+training[training == "#DIV/0!"] <- NA
+```
+
+### 2.5 Remove rows what contains NA values
+
+I would like to remove rows with any *NA* inside.
+
+```{r}
+training <- training[complete.cases(training), ]
+```
+
+
+## 3. Prepare Training and Testing Dataset
+
+We have clean datasets now and may try to prepare prediction model.
+First of all I will separate trainig dataset into two subsets. One of these subsets will be used to train model and the second one will be used for crossvalidation. 
+
+```{r, cache=TRUE}
+library(caret)
+set.seed(12345)
+inTrain <- createDataPartition(
+  y = training$classe, 
+  p = 0.6, 
+  list = FALSE
+)
+predictionTraining <- training[inTrain, ]
+predictionTesting <- training[-inTrain, ]
+```
+
+## 4. Find Proper Model Fit
+
+I will try few different models to find most suitable model for prediction. 
+
+### 4.1 k-Nearest Neighbors
+
+```{r, cache=TRUE}
+knnFit <- train(
+  classe ~ ., 
+  data = predictionTraining, 
+  method = "knn", 
+  preProcess = c("center","scale"),
+  trControl = trainControl(method = "cv")
+)
+knnFit
+plot(knnFit)
+
+knnPredict <- predict(knnFit, newdata = predictionTesting)
+mean(knnPredict == predictionTesting$classe)
+```
+
+### 4.2 Regularized Discriminant Analysis
+
+```{r, cache=TRUE}
+rdaFit <- train(
+  classe ~ ., 
+  data = predictionTraining, 
+  method = "rda", 
+  preProcess = c("center","scale"),
+  trControl = trainControl(method = "cv")
+)
+rdaFit
+plot(rdaFit)
+
+rdaPredict <- predict(rdaFit, newdata = predictionTesting)
+mean(rdaPredict == predictionTesting$classe)
+```
+
+### 4.3 Random Forest
+
+```{r, cache=TRUE}
+library(klaR)
+set.seed(123)
+rfFit <- train(
+  classe ~ ., 
+  data = predictionTraining, 
+  method = "rf",
+  preProcess = c("center","scale"),
+  trControl = trainControl(method = "cv"),
+  prox=TRUE
+)
+rfFit
+plot(rfFit)
+
+rfPredict <- predict(rfFit, newdata = predictionTesting)
+mean(rfPredict == predictionTesting$classe)
+```
+
+So the **Random Forest** is the better model as soon as it has more accurate results. We will use **rfFit** to evaluate *testin* dataset.
+
+## 5. Evaluate Test Data
+
+Here I will evaluate *testing* data and save files for **Prediction Assignment Submission**.
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(
+      x[i],
+      file=filename,
+      quote=FALSE,
+      row.names=FALSE,
+      col.names=FALSE
+    )
+  }
+}
+
+answers <- predict(rfFit, newdata = testing)
+pml_write_files(answers)
+```
+
+## Conclusion
+
+I've made some research to find more suitable prediction model and prepared data matrix with my predictions about *classe* in *testing* dataset.
+
+
+
+
