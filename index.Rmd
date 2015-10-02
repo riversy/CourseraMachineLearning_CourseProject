@@ -28,7 +28,7 @@ First of all I would like to remove new window records as soon as there's aggreg
 
 ```{r}
 library(dplyr)
-training <- filter(training, new_window == 'yes')
+training <- filter(training, new_window != 'yes')
 ```
 
 ### 2.2 Remove overfitting columns
@@ -93,7 +93,7 @@ library(caret)
 set.seed(12345)
 inTrain <- createDataPartition(
   y = training$classe, 
-  p = 0.6, 
+  p = 0.75, 
   list = FALSE
 )
 predictionTraining <- training[inTrain, ]
@@ -102,63 +102,37 @@ predictionTesting <- training[-inTrain, ]
 
 ## 4. Find Proper Model Fit
 
-I will try few different models to find most suitable model for prediction. 
-
-### 4.1 k-Nearest Neighbors
+The **Random Forest** is the better model as soon as it has more accurate results. We will use **rfFit** to evaluate *testin* dataset. 
 
 ```{r, cache=TRUE}
-knnFit <- train(
-  classe ~ ., 
-  data = predictionTraining, 
-  method = "knn", 
-  preProcess = c("center","scale"),
-  trControl = trainControl(method = "cv")
-)
-knnFit
-plot(knnFit)
 
-knnPredict <- predict(knnFit, newdata = predictionTesting)
-mean(knnPredict == predictionTesting$classe)
-```
-
-### 4.2 Regularized Discriminant Analysis
-
-```{r, cache=TRUE}
-rdaFit <- train(
-  classe ~ ., 
-  data = predictionTraining, 
-  method = "rda", 
-  preProcess = c("center","scale"),
-  trControl = trainControl(method = "cv")
-)
-rdaFit
-plot(rdaFit)
-
-rdaPredict <- predict(rdaFit, newdata = predictionTesting)
-mean(rdaPredict == predictionTesting$classe)
-```
-
-### 4.3 Random Forest
-
-```{r, cache=TRUE}
-library(klaR)
 set.seed(123)
+library(parallel)
+library(doParallel)
+
+cl <- makeCluster(detectCores() - 1)
+registerDoParallel(cl)
+
 rfFit <- train(
   classe ~ ., 
   data = predictionTraining, 
   method = "rf",
   preProcess = c("center","scale"),
-  trControl = trainControl(method = "cv"),
+  trControl = trainControl(
+    method = "cv", 
+    allowParallel=TRUE
+  ),
   prox=TRUE
 )
+
+stopCluster(cl)
+
 rfFit
 plot(rfFit)
 
 rfPredict <- predict(rfFit, newdata = predictionTesting)
 mean(rfPredict == predictionTesting$classe)
 ```
-
-So the **Random Forest** is the better model as soon as it has more accurate results. We will use **rfFit** to evaluate *testin* dataset.
 
 ## 5. Evaluate Test Data
 
