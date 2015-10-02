@@ -107,25 +107,16 @@ The **Random Forest** is the better model as soon as it has more accurate result
 ```{r, cache=TRUE}
 
 set.seed(123)
-library(parallel)
-library(doParallel)
-
-cl <- makeCluster(detectCores() - 1)
-registerDoParallel(cl)
-
 rfFit <- train(
   classe ~ ., 
   data = predictionTraining, 
   method = "rf",
   preProcess = c("center","scale"),
   trControl = trainControl(
-    method = "cv", 
-    allowParallel=TRUE
+    method = "cv"
   ),
   prox=TRUE
 )
-
-stopCluster(cl)
 
 rfFit
 plot(rfFit)
